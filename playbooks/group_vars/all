@@ -1,0 +1,33 @@
+---
+ansible_ssh_private_key_file: /home/bernardomk/tmaior-demo.pem
+ansible_user: ec2-user
+bridge_ip: 172.17.0.1
+cert_install_dir: /etc/ssl/cluster
+worker_token: " {{ hostvars[groups['swarm_manager'][0]].worker_token }} "
+manager_token: " {{ hostvars[groups['swarm_manager'][0]].manager_token }} "
+
+__jenkins_repo_url: http://pkg.jenkins.io/redhat/jenkins.repo
+__jenkins_repo_key_url: http://pkg.jenkins.io/redhat/jenkins.io.key
+__jenkins_pkg_url: http://pkg.jenkins.io/redhat
+jenkins_init_file: /etc/sysconfig/jenkins
+jenkins_http_port_param: JENKINS_PORT
+jenkins_hostname: localhost
+jenkins_http_port: 80
+jenkins_http_default_port: 8080
+jenkins_java_options_env_var: JENKINS_JAVA_OPTIONS
+jenkins_email_address: robson_andrade_dev@outlook.com
+jenkins_git_name: RobsonAndradeDev
+
+jenkins_version: 2.39
+jenkins_connection_delay: 5
+jenkins_connection_retries: 10
+jenkins_home: /var/lib/jenkins
+jenkins_jar_location: /opt/jenkins-cli.jar
+jenkins_plugins: [git-client, job-dsl, ansible, github-oauth, Parameterized-Remote-Trigger, build-with-parameters, workflow-aggregator, config-file-provider, parameterized-trigger, github]
+jenkins_url_prefix: ""
+jenkins_java_options: "-Djenkins.install.runSetupWizard=false"
+
+jenkins_admin_username: demo
+jenkins_admin_password: demo123
+jenkins_admin_password_file: demo123
+jenkins_firewalld_interface: eth0

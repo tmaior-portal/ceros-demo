@@ -1,0 +1,49 @@
+---
+- name: add docker repo
+  yum_repository:
+    name: dockerrepo
+    description: Docker Repo
+    baseurl: https://yum.dockerproject.org/repo/main/centos/7/
+    gpgkey: https://yum.dockerproject.org/gpg
+    gpgcheck: yes
+
+- name: install unzip
+  yum: name="unzip" state=present update_cache=yes
+
+- name: install docker-engine
+  yum: name="{{ item }}" state=present update_cache=yes
+  with_items:
+    - docker-engine
+#    - python-docker-py
+
+- name: start and enable docker service
+  service: name=docker state=started enabled=yes
+
+- name: create docker conf directory
+  file: path=/etc/systemd/system/docker.service.d state=directory
+
+- name: copy template
+  template: src=docker.conf dest=/etc/systemd/system/docker.service.d/docker.conf
+  register: result
+
+- name: Ensure systemd is reloaded if docker.service has changed
+  shell: systemctl daemon-reload
+  when: result|changed
+
+- name: restart docker service
+  service: name=docker state=restarted
+  when: result|changed
+
+- name: install easy_install
+  yum: name=python-setuptools  state=present
+
+- name: install/upgrade pip
+  easy_install: name=pip state=latest
+
+- name: install requirements for docker_service Ansible module
+  pip: "{{ item }}"
+  with_items:
+    - {name: 'pyyaml', version: 3.11}
+    - {name: 'docker-py', version: 1.9.0}
+    - {name: 'docker-compose', version: 1.8.0}
+

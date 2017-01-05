@@ -1,0 +1,16 @@
+---
+- name: remove registrator
+  shell: "sudo docker service rm consul-registrator"
+  failed_when: 1 == 2
+
+- name: run registrator
+  shell:  "sudo docker service create --mode global --name consul-registrator --mount source=/var/run/docker.sock,target=/tmp/docker.sock,type=bind  gliderlabs/registrator:master -deregister always -cleanup -internal consul://172.17.0.1:8500"
+  register: service_resilt
+
+- name: remove nginx-consul-template
+  shell: "sudo docker service rm nginx-consul-template"
+  failed_when: 1 == 2
+
+- name: run nginx-consul-template
+  shell:  "sudo docker service create --mode global --name nginx-consul-template --env CONSUL=172.17.0.1:8500 -p 80:80 tmaior/nginx-consul-template"
+  register: service_resilt

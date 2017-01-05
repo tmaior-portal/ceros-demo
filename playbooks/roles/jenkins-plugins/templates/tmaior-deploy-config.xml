@@ -1,0 +1,100 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@2.9">
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty/>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>GITURL</name>
+          <description></description>
+          <defaultValue></defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>SERVICE_NAME</name>
+          <description></description>
+          <defaultValue></defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>DOCKER_REPO</name>
+          <description></description>
+          <defaultValue>tmaior</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>GIT_BRANCH</name>
+          <description></description>
+          <defaultValue></defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>DOCKER_ENV_PARAMS</name>
+          <description></description>
+          <defaultValue></defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>DOCKER_PUBLISHED_PORTS</name>
+          <description></description>
+          <defaultValue></defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>DOCKER_SERVICE_REPLICAS</name>
+          <description></description>
+          <defaultValue></defaultValue>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+      <triggers/>
+    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2.23">
+    <script>node {
+    DOCKER_USER=&apos;tmaior&apos;
+    DOCKER_PASS=&apos;ezops123&apos;
+    SWARM_MANAGER_HOST=&apos;{{ hostvars[groups['swarm_manager'][0]].ansible_default_ipv4.address }}&apos;
+
+    sh &quot;echo $BUILD_NUMBER-`git log --pretty=format:&apos;%h&apos; -n 1` &gt; version&quot;
+
+    String tagValue = readFile(&apos;version&apos;)
+
+    DOCKER_TAG=tagValue.replaceAll(&quot;\\s&quot;,&quot;&quot;)
+    DOCKER_IMAGE= &quot;$DOCKER_REPO/$SERVICE_NAME:$DOCKER_TAG&quot;
+
+    stage(&apos;Checkout Git&apos;) {
+        git([url: &apos;$GITURL&apos;, branch: &apos;$GIT_BRANCH&apos;, credentialsId: &apos;b4abd76e-1486-4305-9292-c65a820b5752&apos;])
+    }
+
+    stage(&apos;Build docker image&apos;){
+        sh &quot;docker build $SERVICE_NAME/ --tag $DOCKER_REPO/$SERVICE_NAME:$DOCKER_TAG&quot;
+        sh &quot;docker login  --username=$DOCKER_USER --password=$DOCKER_PASS&quot;
+    }
+
+    stage(&apos;Push Docker Image&apos;) {
+        sh &quot;docker push $DOCKER_REPO/$SERVICE_NAME:$DOCKER_TAG&quot;
+    }
+
+    stage(&apos;Deploy in Swarm&apos;) {
+        boolean update = false;
+
+        try{
+            sh &quot;docker -H $SWARM_MANAGER_HOST service ps $SERVICE_NAME&quot;
+            update = true;
+        }catch(e){
+            sh &quot;echo &apos;Service does not exist in swarm, creating...&apos;&quot;
+            sh &quot;docker -H $SWARM_MANAGER_HOST service create --name $SERVICE_NAME $DOCKER_ENV_PARAMS $DOCKER_PUBLISHED_PORTS $DOCKER_SERVICE_REPLICAS $DOCKER_IMAGE &quot;
+        }
+
+        if (update) {
+            // Docker service update uses --env-add to add or update --env params instead of create&apos;s --env
+            def DOCKER_ENV_UPDATE_PARAMS = DOCKER_ENV_PARAMS.replaceAll(&quot;--env&quot;, &quot;--env-add&quot;)
+
+            sh &quot;echo &apos;Service exists in swarm, updating...&apos;&quot;
+            sh &quot;docker -H $SWARM_MANAGER_HOST service update --name $SERVICE_NAME --image $DOCKER_IMAGE $DOCKER_ENV_UPDATE_PARAMS $DOCKER_SERVICE_REPLICAS $SERVICE_NAME &quot;
+        }
+    }
+}</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+</flow-definition>

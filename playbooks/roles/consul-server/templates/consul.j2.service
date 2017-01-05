@@ -1,0 +1,7 @@
+[Unit]
+Description=Consul
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/consul agent -server -bind {{ ansible_default_ipv4.address }} -config-file /etc/consul/consul.json -client 0.0.0.0  -ui -data-dir /etc/consul  -bootstrap-expect {{ groups['consul_server'] | count }} {% for host in groups['consul_server'] %} -retry-join {{ hostvars[host].ansible_default_ipv4.address }} {% endfor %} 

@@ -1,0 +1,72 @@
+---
+- name: Modify variables in init file
+  lineinfile:
+    dest: "{{ jenkins_init_file }}"
+    insertafter: '^{{ item.option }}='
+    regexp: '^{{ item.option}}=\"\${{ item.option }} '
+    line: '{{ item.option }}="${{ item.option }} {{ item.value }}"'
+    state: present
+  with_items:
+      "{{ jenkins_init_changes }}"
+  register: jenkins_init_prefix
+
+- name: Set the Jenkins home directory
+  lineinfile:
+    dest: "{{ jenkins_init_file }}"
+    regexp: '^JENKINS_HOME=.*'
+    line: 'JENKINS_HOME={{ jenkins_home }}'
+  register: jenkins_home_config
+
+- name: Immediately restart Jenkins on init config changes.
+  service: name=jenkins state=restarted
+  when: jenkins_init_prefix.changed
+
+- name: Install firewalld to forward port '{{ jenkins_http_port }}' to 8080
+  yum: name=firewalld state=latest
+
+- name: Start firewall
+  service: name=firewalld state=started
+
+- name: Enable firewall
+  command: chkconfig firewalld on
+
+- name: "Change interface {{ jenkins_firewalld_interface }}"
+  command: "firewall-cmd --permanent --zone=external --change-interface={{ jenkins_firewalld_interface }}"
+
+- name: Forward to port {{ jenkins_http_default_port }}
+  command: firewall-cmd --permanent --zone=external --add-forward-port=port={{ jenkins_http_port }}:proto=tcp:toport={{ jenkins_http_default_port }}
+
+- name: Open port on firewall
+  command: firewall-cmd --zone=public --add-port={{ jenkins_http_port }}/tcp --permanent
+
+- name: Check if firewall is running
+  command: systemctl status apache2
+  ignore_errors: yes
+  changed_when: false
+  register: farewall_status
+  failed_when: 1 == 2
+
+- name: Reload firewall
+  service: name=firewalld state=reloaded
+  when: farewall_status | success
+
+- name: Start firewall when stopped
+  service: name=firewalld state=started
+  when: farewall_status | failed
+  
+- name: Create custom init scripts directory.
+  file:
+    path: "{{ jenkins_home }}/init.groovy.d"
+    state: directory
+    owner: jenkins
+    group: jenkins
+    mode: 0775
+
+- name: Trigger handlers immediately in case Jenkins was installed
+  meta: flush_handlers
+
+- name: Immediately restart Jenkins on http or user changes.
+  service: name=jenkins state=restarted
+  when: (jenkins_users_config is defined and jenkins_users_config.changed) or
+        (jenkins_http_config is defined and jenkins_http_config.changed) or
+        (jenkins_home_config is defined and jenkins_home_config.changed)

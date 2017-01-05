@@ -1,0 +1,37 @@
+---
+- name: check for consul installation
+  stat: path=/usr/bin/consul
+  register: consulcheck
+
+- name: install unzip
+  yum: name=unzip  state=present
+
+- name: get consul
+  unarchive: src=https://releases.hashicorp.com/consul/0.7.0/consul_0.7.0_linux_amd64.zip copy=no dest=/usr/bin
+  when: not consulcheck.stat.exists
+
+- name: ensure consul is executable
+  file: path=/usr/bin/consul mode="a+x"
+
+- name: ensure consul group is present
+  group: name=consul
+
+- name: ensure consul user is present
+  user: name=consul groups=consul
+
+- name: ensure config dir are present
+  file: path=/etc/consul state=directory owner=consul group=consul
+
+- name: "Add consul-server config-file"
+  template: src=consul.json dest=/etc/consul/consul.json
+  notify:
+    - restart consul
+
+- name: ensure unit file is present
+  template: src=consul.j2.service dest=/usr/lib/systemd/system/consul.service
+  notify:
+    - reload unit file
+    - restart consul
+
+- name: ensure consul starts on boot
+  service: name=consul enabled=yes

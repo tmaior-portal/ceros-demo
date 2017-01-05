@@ -1,0 +1,104 @@
+---
+# Jenkins doesn't allow updates via CLI, though that is required before plugins
+# can be installed via CLI. See: https://gist.github.com/rowan-m/1026918
+- name: Create Jenkins updates folder.
+  file:
+    path: "{{ jenkins_home }}/updates"
+    owner: jenkins
+    group: jenkins
+    mode: 0755
+    state: directory
+  register: jenkins_plugins_folder_create
+
+- name: Update Jenkins plugin data.
+  shell: curl -L https://updates.jenkins-ci.org/update-center.json | sed '1d;$d' > "{{ jenkins_home }}/updates/default.json"
+  args:
+    creates: "{{ jenkins_home }}/updates/default.json"
+
+- name: Permissions for default.json updates info.
+  file:
+    path: "{{ jenkins_home }}/updates/default.json"
+    owner: jenkins
+    group: jenkins
+    mode: 0755
+  when: jenkins_plugins_folder_create.changed
+
+- name: Check if we're using a password file for authentication
+  stat:
+    path: "{{ jenkins_admin_password_file }}"
+  register: adminpasswordfile
+
+- name: Install git
+  yum: name=git state=latest
+
+- name: Install Jenkins plugins.
+  command: >
+    java -jar {{ jenkins_jar_location }} -s http://{{ jenkins_hostname }}:{{ jenkins_http_default_port }}{{ jenkins_url_prefix | default('') }}/
+    install-plugin {{ item }}
+    --username {{ jenkins_admin_username }}
+    --password {{ jenkins_admin_password }}
+    creates="{{ jenkins_home }}/plugins/{{ item }}.jpi"
+  with_items: "{{ jenkins_plugins }}"
+  notify: restart jenkins
+
+- name: Set Jenkins-CI gitconfig
+  template:
+    src: templates/gitconfig.j2
+    dest: /var/lib/jenkins/.gitconfig
+    group: jenkins
+    owner: jenkins
+    mode: 0640
+    backup: yes
+  notify: restart jenkins
+  tags:
+    - jenkins-conf
+
+- name: Reload firewall
+  service: name=firewalld state=reloaded
+
+- name: Check if firewall is running
+  command: systemctl status apache2
+  ignore_errors: yes
+  changed_when: false
+  register: farewall_status
+  failed_when: 1 == 2
+
+- name: "Copy cutom config file"
+  template: src=custom-config-files.xml dest=/var/lib/jenkins/custom-config-files.xml
+
+- name: "Copy credentials file"
+  template: src=credentials.xml dest=/var/lib/jenkins/credentials.xml
+
+- name: create jobs directory
+  file: path=/var/lib/jenkins/jobs state=directory
+
+- name: create jobs directory
+  file: path=/var/lib/jenkins/workspace state=directory
+
+- name: create jobs directory
+  unarchive: src=jenkins-jobs.zip dest=/var/lib/jenkins/jobs
+
+- name: "Copy tmaior-deploy tempalte file"
+  template: src=tmaior-deploy-config.xml dest=/var/lib/jenkins/jobs/tmaior-deploy/config.xml
+
+- name: give jenkins ownership of the unarchived jobs folders
+  file:
+    path: "/var/lib/jenkins/"
+    owner: jenkins
+    recurse: yes
+
+- name: Start firewall when stopped
+  service: name=firewalld state=started
+  when: farewall_status | failed
+  notify: restart jenkins
+
+- name: Restart machine
+  shell: sleep 2 && shutdown -r now "Jenkins installation"
+  async: 1
+  poll: 0
+  sudo: true
+  ignore_errors: true
+
+- name: Waiting for server to come back
+  local_action: wait_for host={{ inventory_hostname }} state=started delay=10 timeout=60
+  sudo: false

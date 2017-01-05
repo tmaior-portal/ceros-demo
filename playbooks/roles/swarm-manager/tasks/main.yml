@@ -1,0 +1,43 @@
+---
+- name: init swarm manager
+  become: yes
+  command: "docker swarm init --advertise-addr {{ansible_default_ipv4.address}}"
+  register: result
+  when: inventory_hostname == groups["swarm_manager"][0]  
+  failed_when: 1 == 2
+
+- name: get swarm worker token
+  command: sudo docker swarm join-token worker -q
+  register: result_worker_token
+  when: inventory_hostname == groups["swarm_manager"][0]
+  failed_when: result.stderr != "" and result_worker_token.stdout_lines == ""
+
+- set_fact: worker_token="{{ result_worker_token.stdout }} {{ansible_default_ipv4.address}}:2377"
+  when: inventory_hostname == groups["swarm_manager"][0]
+
+- name: get swarm manager token
+  command: sudo docker swarm join-token manager -q
+  register: result_manager_token
+  when: inventory_hostname == groups["swarm_manager"][0]
+  failed_when: result.stderr != "" and result_manager_token.stdout_lines == ""
+
+- set_fact: manager_token="{{ result_manager_token.stdout }} {{ansible_default_ipv4.address}}:2377"
+  when: inventory_hostname == groups["swarm_manager"][0]
+
+- name: join swarm cluster
+  become: yes
+  command: "docker swarm join --token {{manager_token}} {{ groups['swarm_manager'][0]}}:2377"
+  register: join_result
+  when: inventory_hostname != groups["swarm_manager"][0]
+  failed_when: "'This node is already part of a swarm' not in join_result.stderr"
+
+- name: show swarm worker token
+  debug:
+    msg: "Swarm worker token:[ {{ worker_token }} ] "
+
+- name: show swarm manager token
+  debug:
+    msg: "Swarm manager token: [ {{ manager_token}} ]"
+
+- name: drain swarm master 
+  shell: "sudo docker node update --availability drain {{ ansible_fqdn}} "

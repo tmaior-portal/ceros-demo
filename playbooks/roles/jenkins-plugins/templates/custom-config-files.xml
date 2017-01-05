@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<org.jenkinsci.plugins.configfiles.custom.CustomConfigProvider plugin="config-file-provider@2.13">
+  <configs>
+    <entry>
+      <string>9b548ba5-c403-4ff8-9c81-1e691a290cff</string>
+      <org.jenkinsci.lib.configprovider.model.Config>
+        <id>9b548ba5-c403-4ff8-9c81-1e691a290cff</id>
+        <name>Dockerfile</name>
+        <comment></comment>
+        <content># ------------------------------------------------------------------------
+#
+# Copyright tlmaior@gmail.com.
+#
+# ------------------------------------------------------------------------
+
+FROM java:8-jre
+MAINTAINER tlmaior@gmail.com
+
+WORKDIR /opt
+
+# --------------------------------
+# Copy scripts, packages &amp; plugins
+# --------------------------------
+COPY service.jar /opt/
+COPY data-agent-conf.xml /opt/
+COPY client-truststore.jks /opt/
+COPY wso2carbon.jks /etc/ssl/
+
+# ----------------------
+# Expose container ports
+# ----------------------
+EXPOSE 7070 8080
+
+ENTRYPOINT java -jar /opt/service.jar</content>
+        <providerId>org.jenkinsci.plugins.configfiles.custom.CustomConfig</providerId>
+      </org.jenkinsci.lib.configprovider.model.Config>
+    </entry>
+  </configs>
+</org.jenkinsci.plugins.configfiles.custom.CustomConfigProvider>

@@ -1,0 +1,48 @@
+---
+- name: install and configure docker and requirements
+  hosts: all:!localhost:!consul-server:!consul-agent
+  become: yes
+  tags: requirements
+  roles:
+    - docker
+
+- name: run consul server
+  hosts: consul_server
+  become: yes
+  tags: [consul]
+  roles:
+    - consul-server
+
+- name: create swarm managers
+  hosts: swarm_manager
+  become: yes
+  tags: [manager]
+  roles:
+    - swarm-member
+    - consul-agent
+    - swarm-manager
+
+- name: create swarm nodes 
+  hosts: swarm_node
+  become: yes
+  tags: [node]
+  roles:
+   - swarm-member
+   - consul-agent
+   - swarm-node
+
+- name: deploy swarm base services (including registrator)
+  hosts: swarm_manager[0]
+  become: yes
+  tags: [services]
+  roles:
+    - swarm-service
+
+- name: create Jenkins 
+  hosts: jenkins
+  become: yes
+  tags: [jenkins]
+  roles:
+    - jenkins
+    - jenkins-plugins
+

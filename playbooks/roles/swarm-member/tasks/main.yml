@@ -1,0 +1,19 @@
+---
+- name: debug
+  debug: var=ansible_all_ipv4_addresses
+  debug: var=ansible_default_ipv4.address
+
+- name: create docker conf directory
+  file: path=/etc/systemd/system/docker.service.d state=directory
+
+- name: copy template
+  template: src=docker.conf dest=/etc/systemd/system/docker.service.d/docker.conf
+  register: result
+
+- name: Ensure systemd is reloaded if docker.service has changed
+  shell: "systemctl daemon-reload"
+  when: result|changed
+
+- name: restart docker service
+  service: name=docker state=restarted
+  when: result|changed

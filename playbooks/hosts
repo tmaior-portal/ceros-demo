@@ -1,0 +1,11 @@
+[consul_server]
+35.167.56.59
+
+[swarm_manager]
+35.166.4.164
+
+[swarm_node]
+35.166.237.211
+
+[jenkins]
+35.167.70.183

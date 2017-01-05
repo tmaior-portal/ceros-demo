@@ -1,0 +1,15 @@
+---
+- name: Check instance variables within host
+  debug: 
+    msg: " docker swarm join --token {{ worker_token }}  "
+
+- name: join swarm cluster
+  shell:  "sudo docker swarm join --token {{ worker_token }} "
+  register: join_result
+  failed_when: '"This node is already part of a swarm" not in  join_result.stderr and join_result.stdout == ""'
+  changed_when: 'join_result.stdout != "" '
+
+- name: Check instance variables within host
+  debug:
+    msg: " {{ join_result.stdout}}  {{ join_result.stderr }} "
+
